@@ -2,8 +2,7 @@
 data/*.parquet
 
 # Local db file 
-taxi_trips_yellow.duckdb
-taxi_trips_green.duckdb
+taxi.duckdb
 
 # Log file
 logs/*.log
