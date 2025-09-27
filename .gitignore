@@ -6,4 +6,4 @@ taxi_trips_yellow.duckdb
 taxi_trips_green.duckdb
 
 # Log file
-*.log
+logs/*.log
