@@ -8,7 +8,7 @@ from pathlib import Path
 
 # Configs
 YEAR = "2024"
-MONTHS = ["01"] #test january
+MONTHS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"] 
 TAXIS = ["yellow", "green"]
 
 BASE_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/{taxi}_tripdata_{year}-{month}.parquet"
