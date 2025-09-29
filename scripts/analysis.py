@@ -3,7 +3,7 @@ import logging
 import pandas as pd 
 import matplotlib.pyplot as plt 
 import matplotlib.dates as mdates
-from matplotlib.ticker import FuncFormatter, LogLocator
+from matplotlib.ticker import FuncFormatter, LogLocator, MultipleLocator
 
 # Configs
 DB_PATH = "taxi.duckdb"
@@ -18,14 +18,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def analyze_one(con, table_name, pickup_col, cab_label, target_year):
+def analyze_one(con, table_name, pickup_col, cab_label):
     logger.info(f"Analyzing table: {table_name}")
 
     # Largest co2 trip
     max_trip_kg = con.execute(f"""
         SELECT MAX(trip_co2_kgs)
-        FROM {table_name}
-        WHERE EXTRACT(YEAR FROM {pickup_col}) = {int(target_year)};
+        FROM {table_name};
     """).fetchone()[0]
     logger.info(f"[Largest CO2 Trip] {cab_label}: {max_trip_kg:.3f} kg")
     print(f"[Largest CO2 Trip]           {cab_label}: {max_trip_kg:.3f} kg")
@@ -37,7 +36,6 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
             SELECT (hour_of_day + 1) AS hour,
                 AVG(trip_co2_kgs) AS avg_kg
             FROM {table_name}
-            WHERE EXTRACT(YEAR FROM {pickup_col}) = {int(target_year)}
             GROUP BY 1
         )
         ORDER BY avg_kg DESC
@@ -50,7 +48,6 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
             SELECT (hour_of_day + 1) AS hour,
                 AVG(trip_co2_kgs) AS avg_kg
             FROM {table_name}
-            WHERE EXTRACT(YEAR FROM {pickup_col}) = {int(target_year)}
             GROUP BY 1
         )
         ORDER BY avg_kg ASC
@@ -75,7 +72,6 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
                 END AS dow,
                 AVG(trip_co2_kgs) AS avg_kg
             FROM {table_name}
-            WHERE EXTRACT(YEAR FROM {pickup_col}) = {int(target_year)}
             GROUP BY 1
         )
         ORDER BY avg_kg DESC
@@ -96,7 +92,6 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
                 END AS dow,
                 AVG(trip_co2_kgs) AS avg_kg
             FROM {table_name}
-            WHERE EXTRACT(YEAR FROM {pickup_col}) = {int(target_year)}
             GROUP BY 1
         )
         ORDER BY avg_kg ASC
@@ -113,8 +108,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
             SELECT CAST(week_of_year AS INT) AS week,
                 AVG(trip_co2_kgs)        AS avg_kg
             FROM {table_name}
-            WHERE EXTRACT(YEAR FROM {pickup_col}) = {int(target_year)}
-            AND week_of_year BETWEEN 1 AND 52
+            WHERE week_of_year BETWEEN 1 AND 52
             GROUP BY 1
         )
         ORDER BY avg_kg DESC
@@ -126,8 +120,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
             SELECT CAST(week_of_year AS INT) AS week,
                 AVG(trip_co2_kgs)        AS avg_kg
             FROM {table_name}
-            WHERE EXTRACT(YEAR FROM {pickup_col}) = {int(target_year)}
-            AND week_of_year BETWEEN 1 AND 52
+            WHERE week_of_year BETWEEN 1 AND 52
             GROUP BY 1
         )
         ORDER BY avg_kg ASC
@@ -150,8 +143,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
                 END AS mon,
                 AVG(trip_co2_kgs) AS avg_kg
             FROM {table_name}
-            WHERE EXTRACT(YEAR FROM {pickup_col}) = {int(target_year)}
-            AND month_of_year BETWEEN 1 AND 12
+            WHERE month_of_year BETWEEN 1 AND 12
             GROUP BY 1
         )
         ORDER BY avg_kg DESC
@@ -169,8 +161,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
                 END AS mon,
                 AVG(trip_co2_kgs) AS avg_kg
             FROM {table_name}
-            WHERE EXTRACT(YEAR FROM {pickup_col}) = {int(target_year)}
-            AND month_of_year BETWEEN 1 AND 12
+            WHERE month_of_year BETWEEN 1 AND 12
             GROUP BY 1
         )
         ORDER BY avg_kg ASC
@@ -191,15 +182,12 @@ def analyze_tables():
         # Connect to local duckdb
         con = duckdb.connect(database= DB_PATH, read_only = False)
 
-        TARGET_YEAR = 2024
-
         # Yellow analytics
         analyze_one(
             con,
             table_name = STG_YELLOW,
             pickup_col = "tpep_pickup_datetime",
-            cab_label  = "YELLOW",
-            target_year= TARGET_YEAR
+            cab_label  = "YELLOW"
         )
 
         # Green analytics 
@@ -207,8 +195,7 @@ def analyze_tables():
             con,
             table_name = STG_GREEN,
             pickup_col = "lpep_pickup_datetime",
-            cab_label  = "GREEN",
-            target_year= TARGET_YEAR
+            cab_label  = "GREEN"
         )
 
     except Exception as e: 
@@ -235,9 +222,9 @@ def plot_over_time(con, year_start, year_end,
         BETWEEN {int(year_start)} AND {int(year_end)}
     """
 
-    # Yellow monthlys into df 
-    monthly_yellow_df = con.execute(f"""
-        SELECT strftime({yellow_pickup}, '%Y-%m') AS ym,
+    # Yellow yearlys into df 
+    yearly_yellow_df = con.execute(f"""
+        SELECT CAST(strftime({yellow_pickup}, '%Y') AS INT) AS yr,
         SUM(trip_co2_kgs) AS total_kg
         FROM stg_yellow {y_where}
         GROUP BY 1
@@ -245,9 +232,9 @@ def plot_over_time(con, year_start, year_end,
     """).df()
     logger.info(f"Created yellow monthly co2 df for plotting")
 
-    # Green monthlys into df
-    monthly_green_df = con.execute(f"""
-        SELECT strftime({green_pickup}, '%Y-%m') AS ym,
+    # Green yearlys into df
+    yearly_green_df = con.execute(f"""
+        SELECT CAST(strftime({green_pickup}, '%Y') AS INT) AS yr,
         SUM(trip_co2_kgs) AS total_kg
         FROM stg_green {g_where}
         GROUP BY 1
@@ -255,17 +242,17 @@ def plot_over_time(con, year_start, year_end,
     """).df()
     logger.info(f"Created green monthly co2 df for plotting")
 
-    # Convert 'ym' string to datetime
-    monthly_yellow_df["ym"] = pd.to_datetime(monthly_yellow_df["ym"], format="%Y-%m")
-    monthly_green_df["ym"] = pd.to_datetime(monthly_green_df["ym"], format="%Y-%m")
+    # Convert yr to numeric
+    yearly_yellow_df["yr"] = yearly_yellow_df["yr"].astype(int)
+    yearly_green_df["yr"] = yearly_green_df["yr"].astype(int)
 
 
     # Line plot 
     fig, ax = plt.subplots(figsize=(11, 5))
 
-    ax.plot(monthly_yellow_df["ym"], monthly_yellow_df["total_kg"],
+    ax.plot(yearly_yellow_df["yr"], yearly_yellow_df["total_kg"],
             marker="o", label="Yellow Taxi", color="#FFD700")
-    ax.plot(monthly_green_df["ym"], monthly_green_df["total_kg"],
+    ax.plot(yearly_green_df["yr"], yearly_green_df["total_kg"],
             marker="o", label="Green Taxi",  color="green")
 
     # Use log scale on y-axis (otherwise green looks like it's always 0)
@@ -277,20 +264,24 @@ def plot_over_time(con, year_start, year_end,
         FuncFormatter(lambda v, _: f"{v/1e6:.1f}M" if v >= 1e6 else f"{v/1e3:.0f}k")
     )
 
-    # Clean up x-axis as YYYY-MM
-    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
-    fig.autofmt_xdate()
+    # Clean up x-axis ticks every year
+    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.set_xlim(int(year_start), int(year_end))
 
     # Titles and legend
-    ax.set_xlabel("Year-Month")
+    ax.set_xlabel("Year")
     ax.set_ylabel("Total CO2 (kg, log scale)")
-    ax.set_title(f"Monthly Taxi CO2 Totals ({year_start}-{year_end})")
+    ax.set_title(f"Yearly Taxi CO2 Totals ({year_start}-{year_end})")
     ax.legend()
     ax.grid(True, which="both", axis="y", alpha=0.3)
+    
+    # Fix the borders
+    xmin = min(yearly_yellow_df["yr"].min(), yearly_green_df["yr"].min())
+    xmax = max(yearly_yellow_df["yr"].max(), yearly_green_df["yr"].max())
+    ax.set_xlim(int(xmin) - 0.5, int(xmax) + 0.5)  
 
     plt.tight_layout()
-    plt.savefig(out_path, dpi=150)
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -304,7 +295,7 @@ if __name__ == "__main__":
     # Connection for plot function
     con = duckdb.connect(database=DB_PATH, read_only=False)
     try:
-        plot_over_time(con, 2024, 2024, out_path="co2_by_month.png",
+        plot_over_time(con, 2015, 2024, out_path="co2_by_year.png",
                        yellow_pickup="tpep_pickup_datetime",
                        green_pickup="lpep_pickup_datetime")
     finally:

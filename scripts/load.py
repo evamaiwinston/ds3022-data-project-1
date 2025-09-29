@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 # Configs
-YEAR = "2024"
+YEARS = ["2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024"]
 MONTHS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"] 
 TAXIS = ["yellow", "green"]
 
@@ -47,32 +47,33 @@ def load_parquet_files():
 
         # Loop over yellow and green taxis
         for taxi in TAXIS:
-            # Loop over each month 
-            # ADD YEAR NEST to back log 
-            for month in MONTHS:
-                url= BASE_URL.format(taxi = taxi, year =YEAR, month=month) #CHANGE YEAR in config and here to back log
-                out= DATA_DIR / f'{taxi}_tripdata_{YEAR}-{month}.parquet'
+            # Loop over each year 
+            for year in YEARS:
+                print(f'Downloading data for {year}')
+                # Loop over each month
+                for month in MONTHS:
+                    url= BASE_URL.format(taxi = taxi, year =year, month=month) 
+                    out= DATA_DIR / f'{taxi}_tripdata_{year}-{month}.parquet'
 
-                # Don't download if parquet file already exists 
-                if out.exists():
-                    logger.info(f"[download] exists, skip {out.name}")
-                    continue
+                    # Don't download if parquet file already exists 
+                    if out.exists():
+                        logger.info(f"[download] exists, skip {out.name}")
+                        continue
 
-                # Get parquet from cloudfront
-                logger.info(f'[download] GET {url} FOR {out.name}')
-                try:
-                    with requests.get(url, stream= True, timeout= 120) as r :
-                        r.raise_for_status()
-                        with open(out, "wb") as f:
-                            for chunk in r.iter_content(chunk_size=1 << 20):
-                                if chunk:
-                                    f.write(chunk)
-                    # Space out to avoid error
-                    time.sleep(DOWNLOAD_DELAY)
-                except Exception as e:
-                    logger.error(f'[download] failed for {out.name}: {e}')   
-
-
+                    # Get parquet from cloudfront
+                    logger.info(f'[download] GET {url} FOR {out.name}')
+                    try:
+                        with requests.get(url, stream= True, timeout= (10, 60)) as r :
+                            r.raise_for_status()
+                            with open(out, "wb") as f:
+                                for chunk in r.iter_content(chunk_size=1 << 20):
+                                    if chunk:
+                                        f.write(chunk)
+                        # Space out to avoid error
+                        time.sleep(DOWNLOAD_DELAY)
+                    except Exception as e:
+                        logger.error(f'[download] failed for {out.name}: {e}')   
+                
 
         # Connect to local DuckDB instance
         con = duckdb.connect(database=str(DB_PATH), read_only=False)
@@ -94,7 +95,7 @@ def load_parquet_files():
         """)
         logger.info("Dropped emissions table if exists")
 
-
+        print("Creating tables...")
 
         # Create tables with necessary columns
         con.execute(f"""
@@ -129,21 +130,22 @@ def load_parquet_files():
             table = YELLOW_TABLE if taxi == "yellow" else GREEN_TABLE
             cols = ", ".join(YELLOW_COLS if taxi =="yellow" else GREEN_COLS)
 
-            for month in MONTHS:
-                fp = DATA_DIR / f'{taxi}_tripdata_{YEAR}-{month}.parquet'
-                if not fp.exists():
-                    logger.error(f'[ingest] missing file, skip: {fp.name}')
-                    continue
+            for year in YEARS:
+                for month in MONTHS:
+                    fp = DATA_DIR / f'{taxi}_tripdata_{year}-{month}.parquet'
+                    if not fp.exists():
+                        logger.error(f'[ingest] missing file, skip: {fp.name}')
+                        continue
 
-                try:
-                    con.execute(f"""
-                        INSERT INTO {table}
-                        SELECT {cols}
-                        FROM read_parquet('{fp}');
-                    """)
-                    logger.info(f"[ingest] OK {taxi} {YEAR}-{month}")
-                except Exception as e: 
-                    logger.error(f"[ingest] FAIL {taxi} {YEAR}-{month}: {e}")
+                    try:
+                        con.execute(f"""
+                            INSERT INTO {table}
+                            SELECT {cols}
+                            FROM read_parquet('{fp}');
+                        """)
+                        logger.info(f"[ingest] OK {taxi} {year}-{month}")
+                    except Exception as e: 
+                        logger.error(f"[ingest] FAIL {taxi} {year}-{month}: {e}")
 
 
         # Get raw counts
