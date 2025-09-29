@@ -26,6 +26,8 @@ EMISSIONS_TABLE = "vehicle_emissions"
 YELLOW_COLS = ["tpep_pickup_datetime", "tpep_dropoff_datetime", "passenger_count", "trip_distance"]
 GREEN_COLS  = ["lpep_pickup_datetime", "lpep_dropoff_datetime", "passenger_count", "trip_distance"]
 
+
+# Logging
 logging.basicConfig(
     level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s',
     filename='logs/load.log'
@@ -33,6 +35,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.info("---------New run-----------------")
 
+
+# Load function
 def load_parquet_files():
 
     con = None

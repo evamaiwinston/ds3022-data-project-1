@@ -1,8 +1,15 @@
 with src as (
   select * from {{ source('taxi_data','yellow_taxi_trips') }}
+),
+emissions as (
+    select
+        lower(vehicle_type) as vehicle_type,
+        co2_grams_per_mile
+    from {{ source('taxi_data','vehicle_emissions') }}
 )
 select
-    *,
+    'yellow_taxi' as vehicle_type,
+    src.*,
     /* rename pickup/dropoff */
     tpep_pickup_datetime as pickup_time,
     tpep_dropoff_datetime as dropoff_time,
@@ -14,6 +21,11 @@ select
     extract(hour from pickup_time) as hour_of_day,
     extract(dow from pickup_time) as day_of_week,
     extract(week from pickup_time) as week_of_year,
-    extract(month from pickup_time) as month_of_year
+    extract(month from pickup_time) as month_of_year,
+    /* co2 calc */
+    (coalesce(trip_distance,0.0) * coalesce(e.co2_grams_per_mile,0.0)) / 1000.0 as trip_co2_kgs
 from src
+left join emissions e
+  on lower('yellow_taxi') = e.vehicle_type
+
 
