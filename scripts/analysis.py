@@ -2,6 +2,8 @@ import duckdb
 import logging
 import pandas as pd 
 import matplotlib.pyplot as plt 
+import matplotlib.dates as mdates
+from matplotlib.ticker import FuncFormatter, LogLocator
 
 # Configs
 DB_PATH = "taxi.duckdb"
@@ -26,7 +28,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
         WHERE EXTRACT(YEAR FROM {pickup_col}) = {int(target_year)};
     """).fetchone()[0]
     logger.info(f"[Largest CO2 Trip] {cab_label}: {max_trip_kg:.3f} kg")
-    print(f"[Largest CO2 Trip] {cab_label}: {max_trip_kg:.3f} kg")
+    print(f"[Largest CO2 Trip]           {cab_label}: {max_trip_kg:.3f} kg")
 
 
     # Hour of day (1-24)
@@ -56,7 +58,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
     """).fetchone()[0]
 
     logger.info(f"[Hour (avg kg/trip)] {cab_label} heaviest={hour_heavy} | lightest={hour_light}")
-    print(f"[Hour (avg kg/trip)] {cab_label} heaviest={hour_heavy} | lightest={hour_light}")
+    print(f"[Hour (avg kg/trip)]         {cab_label} heaviest={hour_heavy} | lightest={hour_light}")
 
     # Day of week (Sun-Sat)
     dow_heavy = con.execute(f"""
@@ -102,7 +104,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
     """).fetchone()[0]
 
     logger.info(f"[Day of Week (avg kg/trip)] {cab_label} heaviest={dow_heavy} | lightest={dow_light}")
-    print(f"[Day of Week (avg kg/trip)] {cab_label} heaviest={dow_heavy} | lightest={dow_light}")
+    print(f"[Day of Week (avg kg/trip)]  {cab_label} heaviest={dow_heavy} | lightest={dow_light}")
 
 
     # Week of year (1–52)
@@ -176,7 +178,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
     """).fetchone()[0]
 
     logger.info(f"[Month (avg kg/trip)] {cab_label} heaviest={month_heavy} | lightest={month_light}")
-    print(f"[Month (avg kg/trip)] {cab_label} heaviest={month_heavy} | lightest={month_light}")
+    print(f"[Month (avg kg/trip)]        {cab_label} heaviest={month_heavy} | lightest={month_light}")
 
 
 def analyze_tables():
@@ -253,20 +255,44 @@ def plot_over_time(con, year_start, year_end,
     """).df()
     logger.info(f"Created green monthly co2 df for plotting")
 
+    # Convert 'ym' string to datetime
+    monthly_yellow_df["ym"] = pd.to_datetime(monthly_yellow_df["ym"], format="%Y-%m")
+    monthly_green_df["ym"] = pd.to_datetime(monthly_green_df["ym"], format="%Y-%m")
 
-    # Line plot
-    plt.figure(figsize=(11, 5))
-    plt.plot(monthly_yellow_df["ym"], monthly_yellow_df["total_kg"], marker="o",
-             label="YELLOW", color="#FFD700")  
-    plt.plot(monthly_green_df["ym"],  monthly_green_df["total_kg"],  marker="o",
-             label="GREEN",  color="green")    
-    plt.xlabel("Year-Month")
-    plt.ylabel("Total CO2 (kg)")
-    plt.title(f"Monthly Taxi CO2 Totals ({year_start}-{year_end})")
-    plt.xticks(rotation=45, ha="right")
-    plt.legend()
+
+    # Line plot 
+    fig, ax = plt.subplots(figsize=(11, 5))
+
+    ax.plot(monthly_yellow_df["ym"], monthly_yellow_df["total_kg"],
+            marker="o", label="Yellow Taxi", color="#FFD700")
+    ax.plot(monthly_green_df["ym"], monthly_green_df["total_kg"],
+            marker="o", label="Green Taxi",  color="green")
+
+    # Use log scale on y-axis (otherwise green looks like it's always 0)
+    ax.set_yscale("log")  
+
+    # Clean up y-axis to show relevant ticks and abbreviate thousand to K and million to M
+    ax.yaxis.set_major_locator(LogLocator(base=10, subs=(1.0, 2.0, 5.0), numticks=12))
+    ax.yaxis.set_major_formatter(
+        FuncFormatter(lambda v, _: f"{v/1e6:.1f}M" if v >= 1e6 else f"{v/1e3:.0f}k")
+    )
+
+    # Clean up x-axis as YYYY-MM
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
+    fig.autofmt_xdate()
+
+    # Titles and legend
+    ax.set_xlabel("Year-Month")
+    ax.set_ylabel("Total CO2 (kg, log scale)")
+    ax.set_title(f"Monthly Taxi CO2 Totals ({year_start}-{year_end})")
+    ax.legend()
+    ax.grid(True, which="both", axis="y", alpha=0.3)
+
     plt.tight_layout()
     plt.savefig(out_path, dpi=150)
+    plt.close(fig)
+
 
     logger.info(f"Saved plot: {out_path}")
     print(f"[Plot] Saved: {out_path}")
@@ -275,7 +301,7 @@ def plot_over_time(con, year_start, year_end,
 if __name__ == "__main__":
     analyze_tables()
 
-    # connection for plot function
+    # Connection for plot function
     con = duckdb.connect(database=DB_PATH, read_only=False)
     try:
         plot_over_time(con, 2024, 2024, out_path="co2_by_month.png",
