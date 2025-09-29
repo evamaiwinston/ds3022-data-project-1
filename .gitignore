@@ -6,3 +6,6 @@ taxi.duckdb
 
 # Log file
 logs/*.log
+
+# Dbt log file
+dbt/logs/*.log
