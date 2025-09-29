@@ -25,7 +25,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
         FROM {table_name}
         WHERE EXTRACT(YEAR FROM {pickup_col}) = {int(target_year)};
     """).fetchone()[0]
-    logger.info(f"[largest_trip] {cab_label}: {max_trip_kg}")
+    logger.info(f"[Largest CO2 Trip] {cab_label}: {max_trip_kg:.3f} kg")
     print(f"[Largest CO2 Trip] {cab_label}: {max_trip_kg:.3f} kg")
 
 
@@ -55,7 +55,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
         LIMIT 1;
     """).fetchone()[0]
 
-    logger.info("Succesfully found hours of day")
+    logger.info(f"[Hour (avg kg/trip)] {cab_label} heaviest={hour_heavy} | lightest={hour_light}")
     print(f"[Hour (avg kg/trip)] {cab_label} heaviest={hour_heavy} | lightest={hour_light}")
 
     # Day of week (Sun-Sat)
@@ -101,7 +101,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
         LIMIT 1;
     """).fetchone()[0]
 
-    logger.info("Succesfully found days of week")
+    logger.info(f"[Day of Week (avg kg/trip)] {cab_label} heaviest={dow_heavy} | lightest={dow_light}")
     print(f"[Day of Week (avg kg/trip)] {cab_label} heaviest={dow_heavy} | lightest={dow_light}")
 
 
@@ -132,7 +132,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
         LIMIT 1;
     """).fetchone()[0]
 
-    logger.info("Successfully found weeks of year")
+    logger.info(f"[Week of Year (avg kg/trip)] {cab_label} heaviest={week_heavy} | lightest={week_light}")
     print(f"[Week of Year (avg kg/trip)] {cab_label} heaviest={week_heavy} | lightest={week_light}")
 
 
@@ -175,7 +175,7 @@ def analyze_one(con, table_name, pickup_col, cab_label, target_year):
         LIMIT 1;
     """).fetchone()[0]
 
-    logger.info("Successfully found months of year")
+    logger.info(f"[Month (avg kg/trip)] {cab_label} heaviest={month_heavy} | lightest={month_light}")
     print(f"[Month (avg kg/trip)] {cab_label} heaviest={month_heavy} | lightest={month_light}")
 
 
@@ -216,5 +216,70 @@ def analyze_tables():
             con.close()
 
 
+
+def plot_over_time(con, year_start, year_end, 
+                    out_path, yellow_pickup, green_pickup):
+
+    logger.info(f"Plotting years {year_start} to {year_end}")
+
+    # Build where clauses
+    y_where = f"""
+        WHERE EXTRACT(YEAR FROM {yellow_pickup}) 
+        BETWEEN {int(year_start)} AND {int(year_end)}
+    """
+
+    g_where = f"""
+        WHERE EXTRACT(YEAR FROM {green_pickup}) 
+        BETWEEN {int(year_start)} AND {int(year_end)}
+    """
+
+    # Yellow monthlys into df 
+    monthly_yellow_df = con.execute(f"""
+        SELECT strftime({yellow_pickup}, '%Y-%m') AS ym,
+        SUM(trip_co2_kgs) AS total_kg
+        FROM stg_yellow {y_where}
+        GROUP BY 1
+        ORDER BY 1;
+    """).df()
+    logger.info(f"Created yellow monthly co2 df for plotting")
+
+    # Green monthlys into df
+    monthly_green_df = con.execute(f"""
+        SELECT strftime({green_pickup}, '%Y-%m') AS ym,
+        SUM(trip_co2_kgs) AS total_kg
+        FROM stg_green {g_where}
+        GROUP BY 1
+        ORDER BY 1;
+    """).df()
+    logger.info(f"Created green monthly co2 df for plotting")
+
+
+    # Line plot
+    plt.figure(figsize=(11, 5))
+    plt.plot(monthly_yellow_df["ym"], monthly_yellow_df["total_kg"], marker="o",
+             label="YELLOW", color="#FFD700")  
+    plt.plot(monthly_green_df["ym"],  monthly_green_df["total_kg"],  marker="o",
+             label="GREEN",  color="green")    
+    plt.xlabel("Year-Month")
+    plt.ylabel("Total CO2 (kg)")
+    plt.title(f"Monthly Taxi CO2 Totals ({year_start}-{year_end})")
+    plt.xticks(rotation=45, ha="right")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+
+    logger.info(f"Saved plot: {out_path}")
+    print(f"[Plot] Saved: {out_path}")
+
+
 if __name__ == "__main__":
     analyze_tables()
+
+    # connection for plot function
+    con = duckdb.connect(database=DB_PATH, read_only=False)
+    try:
+        plot_over_time(con, 2024, 2024, out_path="co2_by_month.png",
+                       yellow_pickup="tpep_pickup_datetime",
+                       green_pickup="lpep_pickup_datetime")
+    finally:
+        con.close()
