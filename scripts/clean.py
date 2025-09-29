@@ -71,6 +71,7 @@ def clean_one(con, table_name, pickup_col, dropoff_col):
 
     # Verify cleaning
     logger.info(f"Verifying cleaning on {table_name}...")
+    print(f"Verifying cleaning on {table_name}...")
 
     # Check for duplicates
     dupes = con.execute(f"""
@@ -79,6 +80,7 @@ def clean_one(con, table_name, pickup_col, dropoff_col):
         - (SELECT COUNT(*) FROM (SELECT DISTINCT * FROM {table_name}) AS deduped);
     """).fetchone()[0]
     logger.info(f"Duplicate rows: {dupes}")
+    print(f"Duplicate rows: {dupes}")
 
     # Check for 0 passengers
     zero_pass = con.execute(f"""
@@ -86,6 +88,7 @@ def clean_one(con, table_name, pickup_col, dropoff_col):
         WHERE passenger_count = 0;
     """).fetchone()[0]
     logger.info(f"Trips with 0 passengers: {zero_pass}")
+    print(f"Trips with 0 passengers: {zero_pass}")
 
     # Check for 0 mile trips
     zero_miles = con.execute(f"""
@@ -93,6 +96,7 @@ def clean_one(con, table_name, pickup_col, dropoff_col):
         WHERE trip_distance = 0;
     """).fetchone()[0]
     logger.info(f"Trips with 0 miles: {zero_miles}")
+    print(f"Trips with 0 miles: {zero_miles}")
 
     # Check for trips over 100 miles
     over_100_miles = con.execute(f"""
@@ -100,6 +104,7 @@ def clean_one(con, table_name, pickup_col, dropoff_col):
         WHERE trip_distance > 100;
     """).fetchone()[0]
     logger.info(f"Trips with over 100 miles: {over_100_miles}")
+    print(f"Trips with over 100 miles: {over_100_miles}")
 
     # Check for trips longer than 1 day
     over_day = con.execute(f"""
@@ -107,7 +112,9 @@ def clean_one(con, table_name, pickup_col, dropoff_col):
         WHERE date_diff('second', {pickup_col}, {dropoff_col}) > 86400;
     """).fetchone()[0]
     logger.info(f"Trips over 1 day: {over_day}")
+    print(f"Trips over 1 day: {over_day}")
     logger.info(f"Done verifying {table_name}")
+    print(f"Done verifying {table_name}")
 
 
 def clean_tables():
