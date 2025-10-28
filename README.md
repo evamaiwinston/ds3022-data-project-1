@@ -1,6 +1,4 @@
-# DS3022 - Data Project 1 (Fall 2025)
-
-This is a project I did for my Data Engineering class. 
+# This is a data engineering project for DS3022. 
 
 It uses the freely available NYC Trip Record data available from the NYC Taxi Commission Trip Record Data page:
 **https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page**
