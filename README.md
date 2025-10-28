@@ -3,7 +3,7 @@
 It uses the freely available NYC Trip Record data available from the NYC Taxi Commission Trip Record Data page:
 **https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page**
 
-This project calculates CO2 output for rides over the last ten years (2014-2024) and performs some basic statistical
+This project calculates CO2 output for rides over the last ten years (2015-2024) and performs some basic statistical
 analysis based on transformations added to the data.
 
 Python scripts for loading, cleaning, and analyzing data are in the *scripts* folder. 
@@ -23,8 +23,8 @@ The `data/vehicle_emissions.csv` file provides a reference when calculating CO2 
 
 The `load.py` script creates a local, persistent DuckDB database that creates and loads three tables:
 
-1. A full table of YELLOW taxi trips for all of 2014-2024.
-2. A full table of GREEN taxi trips for all of 2014-2024.
+1. A full table of YELLOW taxi trips for all of 2015-2024.
+2. A full table of GREEN taxi trips for all of 2015-2024.
 3. A lookup table of `vehicle_emissions` based on the included CSV file above.
 
 It also outputs raw row counts for each of these tables, before cleaning. 
